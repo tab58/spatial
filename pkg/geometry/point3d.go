@@ -1,10 +1,22 @@
 package geometry
 
+import (
+	"math"
+
+	"github.com/tab58/v1/spatial/pkg/bigfloat"
+	"github.com/tab58/v1/spatial/pkg/errors"
+)
+
 // Point3DReader is a read-only interface for vectors.
 type Point3DReader interface {
 	GetX() float64
 	GetY() float64
 	GetZ() float64
+
+	Clone() *Point3D
+	AsVector() *Vector3D
+	DistanceTo(q Point3DReader) (float64, error)
+	IsEqualTo(q Point3DReader, tol float64) (bool, error)
 }
 
 // Point3DWriter is a write-only interface for vectors.
@@ -52,4 +64,66 @@ func (p *Point3D) SetY(y float64) {
 // SetZ sets the z-coordinate of the point.
 func (p *Point3D) SetZ(z float64) {
 	p.Z = z
+}
+
+// Clone creates a new Point3D with the same coordinate information.
+func (p *Point3D) Clone() *Point3D {
+	return &Point3D{
+		X: p.GetX(),
+		Y: p.GetY(),
+		Z: p.GetZ(),
+	}
+}
+
+// AsVector creates a displacement vector from the origin to this point.
+func (p *Point3D) AsVector() *Vector3D {
+	return &Vector3D{
+		X: p.GetX(),
+		Y: p.GetY(),
+		Z: p.GetZ(),
+	}
+}
+
+// DistanceTo calculates the distance from one point to another.
+func (p *Point3D) DistanceTo(q Point3DReader) (float64, error) {
+	v := q.AsVector()
+	err := v.Sub(p.AsVector())
+	if err != nil {
+		return 0, err
+	}
+	return v.Length()
+}
+
+// IsEqualTo returns true if 2 points can be considered equal to within a specific tolerance, false if not.
+func (p *Point3D) IsEqualTo(q Point3DReader, tol float64) (bool, error) {
+	if IsInvalidTolerance(tol) {
+		return false, errors.ErrInvalidTol
+	}
+
+	px, py, pz := p.GetX(), p.GetY(), p.GetZ()
+	qx, qy, qz := q.GetX(), q.GetY(), q.GetZ()
+
+	c := bigfloat.NewCalculator(qx)
+	c.Sub(px)
+	resX, err := c.Float64()
+	if err != nil {
+		return false, err
+	}
+
+	c.SetFloat64(qy)
+	c.Sub(py)
+	resY, err := c.Float64()
+	if err != nil {
+		return false, err
+	}
+
+	c.SetFloat64(qz)
+	c.Sub(pz)
+	resZ, err := c.Float64()
+	if err != nil {
+		return false, err
+	}
+
+	isEqual := math.Abs(resX) <= tol && math.Abs(resY) <= tol && math.Abs(resZ) <= tol
+	return isEqual, nil
 }

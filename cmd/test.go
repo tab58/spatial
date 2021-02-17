@@ -31,5 +31,10 @@ func main() {
 
 	blas64.Gemm(blas.NoTrans, blas.NoTrans, 1, A, B, 0, C)
 
-	fmt.Printf("%#v\n", C)
+	fmt.Printf("C: %#v\n", C)
+	fmt.Printf("B: %#v\n", B)
+
+	blas64.Gemm(blas.NoTrans, blas.NoTrans, 1, A, B, 0, B)
+
+	fmt.Printf("new B: %#v\n", B)
 }

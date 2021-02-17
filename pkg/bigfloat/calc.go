@@ -1,19 +1,9 @@
 package bigfloat
 
 import (
-	"errors"
 	"math"
 	"math/big"
 )
-
-// ErrOverflow expresses that a computation has resulted in numeric overflow.
-var ErrOverflow = errors.New("numeric overflow")
-
-// ErrUnderflow expresses that a computation has resulted in numeric underflow.
-var ErrUnderflow = errors.New("numeric underflow")
-
-// ErrNaN expresses that a computation has resulted in an invalid results (NaN).
-var ErrNaN = errors.New("result is NaN")
 
 func hasUnderflowed(f float64, acc big.Accuracy) bool {
 	return (f == 0 && acc == big.Below) || (f == -0 && acc == big.Above)

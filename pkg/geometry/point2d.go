@@ -3,7 +3,8 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/geometry/bigfloat"
+	"github.com/tab58/v1/spatial/pkg/bigfloat"
+	"github.com/tab58/v1/spatial/pkg/errors"
 )
 
 // Point2DReader is a write-only interface for vectors.
@@ -38,12 +39,12 @@ type Point2D struct {
 }
 
 // GetX returns the x-coordinate of the point.
-func (p Point2D) GetX() float64 {
+func (p *Point2D) GetX() float64 {
 	return p.X
 }
 
 // GetY returns the y-coordinate of the point.
-func (p Point2D) GetY() float64 {
+func (p *Point2D) GetY() float64 {
 	return p.Y
 }
 
@@ -63,30 +64,10 @@ func (p *Point2D) Copy(q Point2DReader) {
 	p.SetY(q.GetY())
 }
 
-func (p *Point2D) applyFnToComponents(fn func(c *bigfloat.Calculator)) error {
-	c := bigfloat.NewCalculator(p.GetX())
-	fn(c)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(p.GetY())
-	fn(c)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	p.SetX(newX)
-	p.SetY(newY)
-	return nil
-}
-
 // Scale scales the displacement vector from the origin by the given factor.
 func (p *Point2D) Scale(f float64) error {
 	if math.IsNaN(f) {
-		return ErrInvalidArgument
+		return errors.ErrInvalidArgument
 	}
 
 	c := bigfloat.NewCalculator(p.GetX())
@@ -196,7 +177,7 @@ func (p *Point2D) DistanceTo(q Point2DReader) (float64, error) {
 // IsEqualTo returns true if 2 points can be considered equal to within a specific tolerance, false if not.
 func (p *Point2D) IsEqualTo(q Point2DReader, tol float64) (bool, error) {
 	if IsInvalidTolerance(tol) {
-		return false, ErrInvalidTol
+		return false, errors.ErrInvalidTol
 	}
 
 	px, py := p.GetX(), p.GetY()

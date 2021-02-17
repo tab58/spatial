@@ -2,7 +2,18 @@ package bigfloat
 
 import (
 	"math/big"
+
+	"github.com/tab58/v1/spatial/pkg/errors"
 )
+
+// ErrNaN expresses that a computation has resulted in an invalid results (NaN).
+var ErrNaN = errors.ErrNaN
+
+// ErrOverflow expresses that a computation has resulted in numeric overflow.
+var ErrOverflow = errors.ErrOverflow
+
+// ErrUnderflow expresses that a computation has resulted in numeric underflow.
+var ErrUnderflow = errors.ErrUnderflow
 
 // Comparator simplifies comparison between float64 and big.Float numbers.
 type Comparator struct {

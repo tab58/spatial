@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/big"
 
-	"github.com/tab58/v1/spatial/pkg/geometry/bigfloat"
+	"github.com/tab58/v1/spatial/pkg/errors"
 )
 
 // BigFloatPrecision is the number of bits every default *big.Float should have in the mantissa.
@@ -23,7 +23,7 @@ func IsInvalidTolerance(tol float64) bool {
 // Signum returns the sign of the float64 provided.
 func Signum(a float64) (int, error) {
 	if math.IsNaN(a) {
-		return 0, bigfloat.ErrNaN
+		return 0, errors.ErrNaN
 	}
 	if a < 0 || math.IsInf(a, -1) {
 		return -1, nil

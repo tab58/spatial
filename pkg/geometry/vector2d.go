@@ -3,7 +3,8 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/geometry/bigfloat"
+	"github.com/tab58/v1/spatial/pkg/bigfloat"
+	"github.com/tab58/v1/spatial/pkg/errors"
 	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/blas/blas64"
 )
@@ -184,6 +185,8 @@ func (v *Vector2D) Sub(w Vector2DReader) error {
 
 // AngleTo gets the angle between this vector and another vector.
 func (v *Vector2D) AngleTo(w Vector2DReader) (float64, error) {
+	// code based on Kahan's formulas for needle-like triangles
+	// https://people.eecs.berkeley.edu/~wkahan/Triangle.pdf
 	lv, err := v.Length()
 	if err != nil {
 		return 0, nil
@@ -231,7 +234,7 @@ func (v *Vector2D) Normalize() error {
 		return err
 	}
 	if math.Abs(l) == 0 {
-		return ErrDivideByZero
+		return errors.ErrDivideByZero
 	}
 
 	c := bigfloat.NewCalculator(x).Quo(l)
@@ -254,7 +257,7 @@ func (v *Vector2D) Normalize() error {
 // Scale scales the vector by the given factor.
 func (v *Vector2D) Scale(f float64) error {
 	if math.IsNaN(f) {
-		return ErrInvalidArgument
+		return errors.ErrInvalidArgument
 	}
 	x, y := v.GetX(), v.GetY()
 
@@ -278,7 +281,7 @@ func (v *Vector2D) Scale(f float64) error {
 // IsEqualTo returns true if the vector components are equal within a tolerance of each other, false if not.
 func (v *Vector2D) IsEqualTo(w Vector2DReader, tol float64) (bool, error) {
 	if IsInvalidTolerance(tol) {
-		return false, ErrInvalidTol
+		return false, errors.ErrInvalidTol
 	}
 
 	vx, vy := v.GetX(), v.GetY()
@@ -303,7 +306,7 @@ func (v *Vector2D) IsEqualTo(w Vector2DReader, tol float64) (bool, error) {
 // IsParallelTo returns true if the vector is in the direction (either same or opposite) of the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsParallelTo(w Vector2DReader, tol float64) (bool, error) {
 	if IsInvalidTolerance(tol) {
-		return false, ErrInvalidTol
+		return false, errors.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -334,7 +337,7 @@ func (v *Vector2D) IsParallelTo(w Vector2DReader, tol float64) (bool, error) {
 // IsCodirectionalTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsCodirectionalTo(w Vector2DReader, tol float64) (bool, error) {
 	if IsInvalidTolerance(tol) {
-		return false, ErrInvalidTol
+		return false, errors.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -348,7 +351,7 @@ func (v *Vector2D) IsCodirectionalTo(w Vector2DReader, tol float64) (bool, error
 // IsPerpendicularTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsPerpendicularTo(w Vector2DReader, tol float64) (bool, error) {
 	if IsInvalidTolerance(tol) {
-		return false, ErrInvalidTol
+		return false, errors.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -367,7 +370,7 @@ func (v *Vector2D) IsPerpendicularTo(w Vector2DReader, tol float64) (bool, error
 // IsUnitLength returns true if the vector is equal to the normalized vector within the given tolerance, false if not.
 func (v *Vector2D) IsUnitLength(tol float64) (bool, error) {
 	if IsInvalidTolerance(tol) {
-		return false, ErrInvalidTol
+		return false, errors.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -375,10 +378,10 @@ func (v *Vector2D) IsUnitLength(tol float64) (bool, error) {
 	return v.IsEqualTo(vv, tol)
 }
 
-// IsZeroLength returns true if the vector
+// IsZeroLength returns true if the vector is of zero length (within a tolerance), false if not.
 func (v *Vector2D) IsZeroLength(tol float64) (bool, error) {
 	if IsInvalidTolerance(tol) {
-		return false, ErrInvalidTol
+		return false, errors.ErrInvalidTol
 	}
 	return v.IsEqualTo(Zero2D, tol)
 }
