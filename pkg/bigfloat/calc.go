@@ -40,15 +40,25 @@ func NewCalculator(z float64) *Calculator {
 	}
 }
 
-func (f *Calculator) arithBinaryOp(a float64, op func(*big.Float, *big.Float)) *Calculator {
+func (f *Calculator) arithBinaryOp(a float64, op func(*big.Float, *big.Float)) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = ErrNaN
+		}
+	}()
 	f.tmp.SetFloat64(a)
 	op(f.result, f.tmp)
-	return f
+	return nil
 }
 
-func (f *Calculator) arithUnaryOp(op func(*big.Float)) *Calculator {
+func (f *Calculator) arithUnaryOp(op func(*big.Float)) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = ErrNaN
+		}
+	}()
 	op(f.result)
-	return f
+	return nil
 }
 
 // Value gets a clone of the current value of the result.
@@ -76,37 +86,37 @@ func (f *Calculator) Float64() (float64, error) {
 }
 
 // Add adds a to the result.
-func (f *Calculator) Add(a float64) *Calculator {
+func (f *Calculator) Add(a float64) error {
 	return f.arithBinaryOp(a, addOp)
 }
 
 // Sub subtracts a to the result.
-func (f *Calculator) Sub(a float64) *Calculator {
+func (f *Calculator) Sub(a float64) error {
 	return f.arithBinaryOp(a, subOp)
 }
 
 // Mul multiplies a to the result.
-func (f *Calculator) Mul(a float64) *Calculator {
+func (f *Calculator) Mul(a float64) error {
 	return f.arithBinaryOp(a, mulOp)
 }
 
 // Quo divides a from the result.
-func (f *Calculator) Quo(a float64) *Calculator {
+func (f *Calculator) Quo(a float64) error {
 	return f.arithBinaryOp(a, quoOp)
 }
 
 // Neg negates -a and returns the result.
-func (f *Calculator) Neg() *Calculator {
+func (f *Calculator) Neg() error {
 	return f.arithUnaryOp(negOp)
 }
 
 // Sqrt computes the square root of the result.
-func (f *Calculator) Sqrt(a float64) *Calculator {
+func (f *Calculator) Sqrt(a float64) error {
 	return f.arithUnaryOp(sqrtOp)
 }
 
 // Abs computes the absolute value of the result.
-func (f *Calculator) Abs(a float64) *Calculator {
+func (f *Calculator) Abs(a float64) error {
 	return f.arithUnaryOp(absOp)
 }
 

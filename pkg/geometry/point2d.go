@@ -3,8 +3,8 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/bigfloat"
 	"github.com/tab58/v1/spatial/pkg/errors"
+	"github.com/tab58/v1/spatial/pkg/numeric"
 )
 
 // Point2DReader is a write-only interface for vectors.
@@ -70,18 +70,10 @@ func (p *Point2D) Scale(f float64) error {
 		return errors.ErrInvalidArgument
 	}
 
-	c := bigfloat.NewCalculator(p.GetX())
-	c.Mul(f)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(p.GetY())
-	c.Mul(f)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
+	newX := p.GetX() * f
+	newY := p.GetY() * f
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
+		return errors.ErrOverflow
 	}
 
 	p.SetX(newX)
@@ -94,19 +86,10 @@ func (p *Point2D) Add(v Vector2DReader) error {
 	x, y := p.GetX(), p.GetY()
 	vx, vy := v.GetX(), v.GetY()
 
-	c := bigfloat.NewCalculator(p.GetX())
-	c.SetFloat64(x)
-	c.Add(vx)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(y)
-	c.Add(vy)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
+	newX := x + vx
+	newY := y + vy
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
+		return errors.ErrOverflow
 	}
 
 	p.SetX(newX)
@@ -119,19 +102,10 @@ func (p *Point2D) Sub(v Vector2DReader) error {
 	x, y := p.GetX(), p.GetY()
 	vx, vy := v.GetX(), v.GetY()
 
-	c := bigfloat.NewCalculator(p.GetX())
-	c.SetFloat64(x)
-	c.Sub(vx)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(y)
-	c.Sub(vy)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
+	newX := x - vx
+	newY := y - vy
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
+		return errors.ErrOverflow
 	}
 
 	p.SetX(newX)
@@ -160,42 +134,29 @@ func (p *Point2D) DistanceTo(q Point2DReader) (float64, error) {
 	qx, qy := q.GetX(), q.GetY()
 	px, py := p.GetX(), p.GetY()
 
-	x, y := NewBigFloat(qx), NewBigFloat(qy)
-	tmp := NewBigFloat(0)
+	newX := qx - px
+	newY := qy - py
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
+		return 0, errors.ErrOverflow
+	}
 
-	tmp.SetFloat64(px)
-	x.Sub(x, tmp)
-	tmp.SetFloat64(py)
-	y.Sub(y, tmp)
-
-	len := bigfloat.Nrm2(x, y)
-	res, acc := len.Float64()
-
-	return res, bigfloat.HasNumericErr(res, acc)
+	len := numeric.Nrm2(newX, newY)
+	if math.IsInf(len, 0) {
+		return 0, errors.ErrOverflow
+	}
+	return len, nil
 }
 
 // IsEqualTo returns true if 2 points can be considered equal to within a specific tolerance, false if not.
 func (p *Point2D) IsEqualTo(q Point2DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
-
 	px, py := p.GetX(), p.GetY()
 	qx, qy := q.GetX(), q.GetY()
 
-	x, y := NewBigFloat(qx), NewBigFloat(qy)
-	tmp := NewBigFloat(0)
-
-	x.SetFloat64(qx)
-	tmp.SetFloat64(px)
-	x.Sub(x, tmp)
-
-	y.SetFloat64(qy)
-	tmp.SetFloat64(py)
-	y.Sub(y, tmp)
-
-	cmp := bigfloat.NewComparator()
-
-	isEqual := cmp.LTEFloat64(x, tol) && cmp.LTEFloat64(y, tol)
+	x := math.Abs(px - qx)
+	y := math.Abs(py - qy)
+	isEqual := x <= tol && y <= tol
 	return isEqual, nil
 }

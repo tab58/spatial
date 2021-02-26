@@ -6,6 +6,7 @@ import (
 	"github.com/tab58/v1/spatial/pkg/bigfloat"
 	"github.com/tab58/v1/spatial/pkg/blasmatrix"
 	"github.com/tab58/v1/spatial/pkg/errors"
+	"github.com/tab58/v1/spatial/pkg/numeric"
 	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/blas/blas64"
 )
@@ -109,26 +110,24 @@ func (v *Vector3D) ToBlasVector() blas64.Vector {
 
 // Length computes the length of the vector.
 func (v *Vector3D) Length() (float64, error) {
-	x, y, z := NewBigFloat(v.GetX()), NewBigFloat(v.GetY()), NewBigFloat(v.GetZ())
-	r := bigfloat.Nrm2(bigfloat.Nrm2(x, y), z)
+	x, y, z := v.GetX(), v.GetY(), v.GetZ()
 
-	res, acc := r.Float64()
-	return res, bigfloat.HasNumericErr(res, acc)
+	r := numeric.Nrm2(numeric.Nrm2(x, y), z)
+	if math.IsInf(r, 0) {
+		return 0, errors.ErrOverflow
+	}
+	return r, nil
 }
 
 // LengthSquared computes the squared length of the vector.
 func (v *Vector3D) LengthSquared() (float64, error) {
-	x, y, z := NewBigFloat(v.GetX()), NewBigFloat(v.GetY()), NewBigFloat(v.GetZ())
+	x, y, z := v.GetX(), v.GetY(), v.GetZ()
 
-	x.Mul(x, x)
-	y.Mul(y, y)
-	z.Mul(z, z)
-	r := NewBigFloat(0)
-	r.Add(x, y)
-	r.Add(r, z)
-
-	res, acc := r.Float64()
-	return res, bigfloat.HasNumericErr(res, acc)
+	r := x*x + y*y + z*z
+	if math.IsInf(r, 0) {
+		return 0, errors.ErrOverflow
+	}
+	return r, nil
 }
 
 // Clone creates a new Vector3D with the same component values.
@@ -149,7 +148,7 @@ func (v *Vector3D) GetNormalizedVector() *Vector3D {
 
 // IsZeroLength returns true if the vector is of zero length (within a tolerance), false if not.
 func (v *Vector3D) IsZeroLength(tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 	return v.IsEqualTo(Zero3D, tol)
@@ -157,7 +156,7 @@ func (v *Vector3D) IsZeroLength(tol float64) (bool, error) {
 
 // IsUnitLength returns true if the vector is equal to the normalized vector within the given tolerance, false if not.
 func (v *Vector3D) IsUnitLength(tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
@@ -212,96 +211,64 @@ func (v *Vector3D) AngleTo(u Vector3DReader) (float64, error) {
 
 // Dot computes the dot product between this vector and another Vector3DReader.
 func (v *Vector3D) Dot(w Vector3DReader) (float64, error) {
-	ax, ay, az := NewBigFloat(v.GetX()), NewBigFloat(v.GetY()), NewBigFloat(v.GetZ())
-	bx, by, bz := NewBigFloat(w.GetX()), NewBigFloat(w.GetY()), NewBigFloat(w.GetZ())
+	ax, ay, az := v.GetX(), v.GetY(), v.GetZ()
+	bx, by, bz := w.GetX(), w.GetY(), w.GetZ()
 
-	rAcc := NewBigFloat(0)
-	t := NewBigFloat(0)
-	t.Mul(ax, bx)
-	rAcc.Add(rAcc, t)
-	t.Mul(ay, by)
-	rAcc.Add(rAcc, t)
-	t.Mul(az, bz)
-	rAcc.Add(rAcc, t)
+	r := ax*bx + ay*by + az*bz
+	if math.IsInf(r, 0) {
+		return 0, errors.ErrOverflow
+	}
 
-	res, acc := rAcc.Float64()
-	return res, bigfloat.HasNumericErr(res, acc)
+	return r, nil
 }
 
 // Cross computes the cross product between this vector and another Vector3DReader.
 func (v *Vector3D) Cross(w Vector3DReader) (*Vector3D, error) {
-	ax, ay, az := NewBigFloat(v.GetX()), NewBigFloat(v.GetY()), NewBigFloat(v.GetZ())
-	bx, by, bz := NewBigFloat(w.GetX()), NewBigFloat(w.GetY()), NewBigFloat(w.GetZ())
+	ax, ay, az := v.GetX(), v.GetY(), v.GetZ()
+	bx, by, bz := w.GetX(), w.GetY(), w.GetZ()
 
-	t1, t2, r := NewBigFloat(0), NewBigFloat(0), NewBigFloat(0)
-
-	t1.Mul(ay, bz)
-	t2.Mul(az, by)
-	r.Sub(t1, t2)
-	ux, acc := r.Float64()
-	err := bigfloat.HasNumericErr(ux, acc)
-	if err != nil {
-		return nil, err
+	ux := ay*bz - az*by
+	if math.IsInf(ux, 0) {
+		return nil, errors.ErrOverflow
 	}
 
-	t1.Mul(ax, bz)
-	t2.Mul(az, bx)
-	r.Sub(t1, t2)
-	r.Neg(r)
-	uy, acc := r.Float64()
-	err = bigfloat.HasNumericErr(uy, acc)
-	if err != nil {
-		return nil, err
+	uy := az*bx - ax*bz
+	if math.IsInf(uy, 0) {
+		return nil, errors.ErrOverflow
 	}
 
-	t1.Mul(ax, by)
-	t2.Mul(ay, bx)
-	r.Sub(t1, t2)
-	uz, acc := r.Float64()
-	err = bigfloat.HasNumericErr(uz, acc)
-	if err != nil {
-		return nil, err
+	uz := ax*by - ay*bx
+	if math.IsInf(uz, 0) {
+		return nil, errors.ErrOverflow
 	}
 
-	return &Vector3D{
+	cross := &Vector3D{
 		X: ux,
 		Y: uy,
 		Z: uz,
-	}, nil
+	}
+	return cross, nil
 }
 
 // IsEqualTo returns true if the vector components are equal within a tolerance of each other, false if not.
 func (v *Vector3D) IsEqualTo(w Vector3DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
 	vx, vy, vz := v.GetX(), v.GetY(), v.GetZ()
 	wx, wy, wz := w.GetX(), w.GetY(), v.GetZ()
 
-	x, y, z := NewBigFloat(0), NewBigFloat(0), NewBigFloat(0)
-	tmp := NewBigFloat(0)
-
-	x.SetFloat64(wx)
-	tmp.SetFloat64(vx)
-	x.Sub(x, tmp)
-
-	y.SetFloat64(wy)
-	tmp.SetFloat64(vy)
-	y.Sub(y, tmp)
-
-	z.SetFloat64(wz)
-	tmp.SetFloat64(vz)
-	z.Sub(z, tmp)
-
-	cmp := bigfloat.NewComparator()
-	isEqual := cmp.LTEFloat64(x, tol) && cmp.LTEFloat64(y, tol) && cmp.LTEFloat64(z, tol)
+	x := math.Abs(wx - vx)
+	y := math.Abs(wy - vy)
+	z := math.Abs(wz - vz)
+	isEqual := x <= tol && y <= tol && z <= tol
 	return isEqual, nil
 }
 
 // IsParallelTo returns true if the vector is in the direction (either same or opposite) of the given vector within the given tolerance, false if not.
 func (v *Vector3D) IsParallelTo(w Vector3DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
@@ -315,7 +282,7 @@ func (v *Vector3D) IsParallelTo(w Vector3DReader, tol float64) (bool, error) {
 		return false, err
 	}
 
-	d, err := Signum(D)
+	d, err := numeric.Signum(D)
 	if err != nil {
 		return false, err
 	}
@@ -332,7 +299,7 @@ func (v *Vector3D) IsParallelTo(w Vector3DReader, tol float64) (bool, error) {
 
 // IsPerpendicularTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector3D) IsPerpendicularTo(w Vector3DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
@@ -351,7 +318,7 @@ func (v *Vector3D) IsPerpendicularTo(w Vector3DReader, tol float64) (bool, error
 
 // IsCodirectionalTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector3D) IsCodirectionalTo(w Vector3DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
@@ -448,22 +415,11 @@ func (v *Vector3D) Normalize() error {
 		return errors.ErrDivideByZero
 	}
 
-	c := bigfloat.NewCalculator(x).Quo(l)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(y).Quo(l)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(z).Quo(l)
-	newZ, err := c.Float64()
-	if err != nil {
-		return err
+	newX := x / l
+	newY := y / l
+	newZ := z / l
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) || math.IsInf(newZ, 0) {
+		return errors.ErrOverflow
 	}
 
 	v.SetX(newX)
@@ -477,24 +433,14 @@ func (v *Vector3D) Scale(f float64) error {
 	if math.IsNaN(f) {
 		return errors.ErrInvalidArgument
 	}
+
 	x, y, z := v.GetX(), v.GetY(), v.GetZ()
 
-	c := bigfloat.NewCalculator(x).Mul(f)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(y).Mul(f)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(z).Mul(f)
-	newZ, err := c.Float64()
-	if err != nil {
-		return err
+	newX := x * f
+	newY := y * f
+	newZ := z * f
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) || math.IsInf(newZ, 0) {
+		return errors.ErrOverflow
 	}
 
 	v.SetX(newX)

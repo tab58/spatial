@@ -5,6 +5,7 @@ import (
 
 	"github.com/tab58/v1/spatial/pkg/bigfloat"
 	"github.com/tab58/v1/spatial/pkg/errors"
+	"github.com/tab58/v1/spatial/pkg/numeric"
 	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/blas/blas64"
 )
@@ -90,40 +91,36 @@ func (v *Vector2D) Clone() *Vector2D {
 
 // Dot computes the dot produce between this vector and another Vector2DReader.
 func (v *Vector2D) Dot(w Vector2DReader) (float64, error) {
-	ax, ay := NewBigFloat(v.GetX()), NewBigFloat(v.GetY())
-	bx, by := NewBigFloat(w.GetX()), NewBigFloat(w.GetY())
+	ax, ay := v.GetX(), v.GetY()
+	bx, by := w.GetX(), w.GetY()
 
-	r := NewBigFloat(0)
-	t := NewBigFloat(0)
-	t.Mul(ax, bx)
-	r.Add(r, t)
-	t.Mul(ay, by)
-	r.Add(r, t)
-
-	res, acc := r.Float64()
-	return res, bigfloat.HasNumericErr(res, acc)
+	res := ax*bx + ay*by
+	if math.IsInf(res, 0) {
+		return 0, errors.ErrOverflow
+	}
+	return res, nil
 }
 
 // Length computes the length of the vector.
 func (v *Vector2D) Length() (float64, error) {
-	x, y := NewBigFloat(v.GetX()), NewBigFloat(v.GetY())
-	r := bigfloat.Nrm2(x, y)
+	x, y := v.GetX(), v.GetY()
+	r := numeric.Nrm2(x, y)
 
-	res, acc := r.Float64()
-	return res, bigfloat.HasNumericErr(res, acc)
+	if math.IsInf(r, 0) {
+		return 0, errors.ErrOverflow
+	}
+	return r, nil
 }
 
 // LengthSquared computes the squared length of the vector.
 func (v *Vector2D) LengthSquared() (float64, error) {
-	x, y := NewBigFloat(v.GetX()), NewBigFloat(v.GetY())
+	x, y := v.GetX(), v.GetY()
 
-	x.Mul(x, x)
-	y.Mul(y, y)
-	r := NewBigFloat(0)
-	r.Add(x, y)
-
-	res, acc := r.Float64()
-	return res, bigfloat.HasNumericErr(res, acc)
+	res := x*x + y*y
+	if math.IsInf(res, 0) {
+		return 0, errors.ErrOverflow
+	}
+	return res, nil
 }
 
 // Negate negates the vector components.
@@ -138,19 +135,10 @@ func (v *Vector2D) Add(w Vector2DReader) error {
 	vx, vy := v.GetX(), v.GetY()
 	wx, wy := w.GetX(), w.GetY()
 
-	c := bigfloat.NewCalculator(v.GetX())
-	c.SetFloat64(vx)
-	c.Add(wx)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(vy)
-	c.Add(wy)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
+	newX := vx + wx
+	newY := vy + wy
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
+		return errors.ErrOverflow
 	}
 
 	v.SetX(newX)
@@ -163,19 +151,10 @@ func (v *Vector2D) Sub(w Vector2DReader) error {
 	vx, vy := v.GetX(), v.GetY()
 	wx, wy := w.GetX(), w.GetY()
 
-	c := bigfloat.NewCalculator(v.GetX())
-	c.SetFloat64(vx)
-	c.Sub(wx)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(vy)
-	c.Sub(wy)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
+	newX := vx - wx
+	newY := vy - wy
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
+		return errors.ErrOverflow
 	}
 
 	v.SetX(newX)
@@ -237,16 +216,10 @@ func (v *Vector2D) Normalize() error {
 		return errors.ErrDivideByZero
 	}
 
-	c := bigfloat.NewCalculator(x).Quo(l)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(y).Quo(l)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
+	newX := x / l
+	newY := y / l
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
+		return errors.ErrOverflow
 	}
 
 	v.SetX(newX)
@@ -259,18 +232,11 @@ func (v *Vector2D) Scale(f float64) error {
 	if math.IsNaN(f) {
 		return errors.ErrInvalidArgument
 	}
-	x, y := v.GetX(), v.GetY()
 
-	c := bigfloat.NewCalculator(x).Mul(f)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(y).Mul(f)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
+	newX := v.GetX() * f
+	newY := v.GetY() * f
+	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
+		return errors.ErrOverflow
 	}
 
 	v.SetX(newX)
@@ -280,32 +246,23 @@ func (v *Vector2D) Scale(f float64) error {
 
 // IsEqualTo returns true if the vector components are equal within a tolerance of each other, false if not.
 func (v *Vector2D) IsEqualTo(w Vector2DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
 	vx, vy := v.GetX(), v.GetY()
 	wx, wy := w.GetX(), w.GetY()
 
-	x, y := NewBigFloat(0), NewBigFloat(0)
-	tmp := NewBigFloat(0)
+	x := math.Abs(wx - vx)
+	y := math.Abs(wy - vy)
 
-	x.SetFloat64(wx)
-	tmp.SetFloat64(vx)
-	x.Sub(x, tmp)
-
-	y.SetFloat64(wy)
-	tmp.SetFloat64(vy)
-	y.Sub(y, tmp)
-
-	cmp := bigfloat.NewComparator()
-	isEqual := cmp.LTEFloat64(x, tol) && cmp.LTEFloat64(y, tol)
+	isEqual := x <= tol && y <= tol
 	return isEqual, nil
 }
 
 // IsParallelTo returns true if the vector is in the direction (either same or opposite) of the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsParallelTo(w Vector2DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
@@ -319,7 +276,7 @@ func (v *Vector2D) IsParallelTo(w Vector2DReader, tol float64) (bool, error) {
 		return false, err
 	}
 
-	d, err := Signum(D)
+	d, err := numeric.Signum(D)
 	if err != nil {
 		return false, err
 	}
@@ -336,7 +293,7 @@ func (v *Vector2D) IsParallelTo(w Vector2DReader, tol float64) (bool, error) {
 
 // IsCodirectionalTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsCodirectionalTo(w Vector2DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
@@ -350,7 +307,7 @@ func (v *Vector2D) IsCodirectionalTo(w Vector2DReader, tol float64) (bool, error
 
 // IsPerpendicularTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsPerpendicularTo(w Vector2DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
@@ -369,7 +326,7 @@ func (v *Vector2D) IsPerpendicularTo(w Vector2DReader, tol float64) (bool, error
 
 // IsUnitLength returns true if the vector is equal to the normalized vector within the given tolerance, false if not.
 func (v *Vector2D) IsUnitLength(tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
@@ -380,7 +337,7 @@ func (v *Vector2D) IsUnitLength(tol float64) (bool, error) {
 
 // IsZeroLength returns true if the vector is of zero length (within a tolerance), false if not.
 func (v *Vector2D) IsZeroLength(tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 	return v.IsEqualTo(Zero2D, tol)

@@ -3,8 +3,8 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/bigfloat"
 	"github.com/tab58/v1/spatial/pkg/errors"
+	"github.com/tab58/v1/spatial/pkg/numeric"
 )
 
 // Point3DReader is a read-only interface for vectors.
@@ -96,34 +96,16 @@ func (p *Point3D) DistanceTo(q Point3DReader) (float64, error) {
 
 // IsEqualTo returns true if 2 points can be considered equal to within a specific tolerance, false if not.
 func (p *Point3D) IsEqualTo(q Point3DReader, tol float64) (bool, error) {
-	if IsInvalidTolerance(tol) {
+	if numeric.IsInvalidTolerance(tol) {
 		return false, errors.ErrInvalidTol
 	}
 
 	px, py, pz := p.GetX(), p.GetY(), p.GetZ()
 	qx, qy, qz := q.GetX(), q.GetY(), q.GetZ()
 
-	c := bigfloat.NewCalculator(qx)
-	c.Sub(px)
-	resX, err := c.Float64()
-	if err != nil {
-		return false, err
-	}
-
-	c.SetFloat64(qy)
-	c.Sub(py)
-	resY, err := c.Float64()
-	if err != nil {
-		return false, err
-	}
-
-	c.SetFloat64(qz)
-	c.Sub(pz)
-	resZ, err := c.Float64()
-	if err != nil {
-		return false, err
-	}
-
-	isEqual := math.Abs(resX) <= tol && math.Abs(resY) <= tol && math.Abs(resZ) <= tol
+	resX := math.Abs(qx - px)
+	resY := math.Abs(qy - py)
+	resZ := math.Abs(qz - pz)
+	isEqual := resX <= tol && resY <= tol && resZ <= tol
 	return isEqual, nil
 }
