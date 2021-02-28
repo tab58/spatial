@@ -27,7 +27,11 @@ func (c *CoordinateSystem) B1() geometry.Vector3DReader {
 	return c.b1
 }
 
-// Rotate rotates the coordinate system about an axis and angle defined in the parent coordinate system.
-func (c *CoordinateSystem) Rotate(axis geometry.Vector3DReader, angle float64) {
-
+// Rotate rotates (body-fixed) the coordinate system about an axis and angle defined in the parent coordinate system.
+func (c *CoordinateSystem) Rotate(axis geometry.Vector3DReader, angle float64) error {
+	transform := Transform3D{}
+	err := transform.Set3DRotation(axis, angle)
+	if err != nil {
+		return err
+	}
 }

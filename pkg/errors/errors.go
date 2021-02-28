@@ -4,6 +4,9 @@ import (
 	e "errors"
 )
 
+// ErrSingularMatrix expresses that a matrix is singular.
+var ErrSingularMatrix = e.New("matrix is singular or near singular")
+
 // ErrOverflow expresses that a computation has resulted in numeric overflow.
 var ErrOverflow = e.New("numeric overflow")
 

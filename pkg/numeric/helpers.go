@@ -6,6 +6,21 @@ import (
 	"github.com/tab58/v1/spatial/pkg/errors"
 )
 
+// IsOverflow returns true if the number has overflowed, false if not.
+func IsOverflow(num float64) bool {
+	return math.IsInf(num, 0)
+}
+
+// AreAnyOverflow returns true if any number has overflowed, false if not.
+func AreAnyOverflow(nums ...float64) bool {
+	for _, num := range nums {
+		if IsOverflow(num) {
+			return true
+		}
+	}
+	return false
+}
+
 // Signum returns the sign of the float64 provided.
 func Signum(a float64) (int, error) {
 	if math.IsNaN(a) {

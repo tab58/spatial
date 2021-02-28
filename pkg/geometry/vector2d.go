@@ -3,7 +3,6 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/bigfloat"
 	"github.com/tab58/v1/spatial/pkg/errors"
 	"github.com/tab58/v1/spatial/pkg/numeric"
 	"gonum.org/v1/gonum/blas"
@@ -32,6 +31,9 @@ type Vector2DReader interface {
 	IsCodirectionalTo(w Vector2DReader, tol float64) (bool, error)
 	IsParallelTo(w Vector2DReader, tol float64) (bool, error)
 	IsEqualTo(w Vector2DReader, tol float64) (bool, error)
+
+	MatrixTransform2D(m *Matrix2D) error
+	HomogeneousMatrixTransform3D(m *Matrix3D) error
 }
 
 // Vector2DWriter is a write-only interface for a 2D vector.
@@ -356,31 +358,6 @@ func (v *Vector2D) GetNormalizedVector() *Vector2D {
 	return w
 }
 
-// RotateBy rotates the vector by the angle specified. The positive direction is counterclockwise about the cross product of the axes.
-func (v *Vector2D) RotateBy(angleRad float64) error {
-	if math.IsNaN(angleRad) {
-		return bigfloat.ErrNaN
-	}
-	c := math.Cos(angleRad)
-	s := math.Sin(angleRad)
-	R := blas64.General{
-		Rows:   2,
-		Cols:   2,
-		Stride: 2,
-		Data:   []float64{c, -s, s, c},
-	}
-	w := v.ToBlasVector()
-
-	Rw := Zero2D.Clone().ToBlasVector()
-	blas64.Gemv(blas.NoTrans, 1, R, w, 1, Rw)
-
-	// TODO: do we need some check here?
-	newX, newY := Rw.Data[0], Rw.Data[1]
-	v.SetX(newX)
-	v.SetY(newY)
-	return nil
-}
-
 // ToBlasVector returns a BLAS vector for operations.
 func (v *Vector2D) ToBlasVector() blas64.Vector {
 	return blas64.Vector{
@@ -388,4 +365,53 @@ func (v *Vector2D) ToBlasVector() blas64.Vector {
 		Data: []float64{v.X, v.Y},
 		Inc:  1,
 	}
+}
+
+// MatrixTransform2D transforms this vector by left-multiplying the given matrix.
+func (v *Vector2D) MatrixTransform2D(m *Matrix2D) error {
+	isSingular, err := m.IsNearSingular(1e-12)
+	if err != nil {
+		return err
+	}
+	if isSingular {
+		return errors.ErrSingularMatrix
+	}
+
+	vv := v.ToBlasVector()
+	mm := m.ToBlas64General()
+
+	V := blas64.Vector{
+		N:    2,
+		Data: []float64{0, 0},
+		Inc:  1,
+	}
+	blas64.Gemv(blas.NoTrans, 1, mm, vv, 0, V)
+	v.SetX(V.Data[0])
+	v.SetY(V.Data[1])
+	return nil
+}
+
+// HomogeneousMatrixTransform3D transforms this vector by left-multiplying the given matrix
+// by the homogeneous vector and then projected back into this space.
+func (v *Vector2D) HomogeneousMatrixTransform3D(m *Matrix3D) error {
+	w := &Vector3D{X: v.X, Y: v.Y, Z: 1.0}
+	err := w.MatrixTransform3D(m)
+	if err != nil {
+		return err
+	}
+
+	wx, wy, wz := w.X, w.Y, w.Z
+	if wz != 0 {
+		return errors.ErrDivideByZero
+	}
+
+	newX := wx / wz
+	newY := wy / wz
+	if numeric.AreAnyOverflow(newX, newY) {
+		return errors.ErrOverflow
+	}
+
+	v.SetX(newX)
+	v.SetY(newY)
+	return nil
 }

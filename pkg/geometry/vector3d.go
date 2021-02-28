@@ -3,8 +3,6 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/bigfloat"
-	"github.com/tab58/v1/spatial/pkg/blasmatrix"
 	"github.com/tab58/v1/spatial/pkg/errors"
 	"github.com/tab58/v1/spatial/pkg/numeric"
 	"gonum.org/v1/gonum/blas"
@@ -34,6 +32,9 @@ type Vector3DReader interface {
 	IsCodirectionalTo(w Vector3DReader, tol float64) (bool, error)
 	IsParallelTo(w Vector3DReader, tol float64) (bool, error)
 	IsEqualTo(w Vector3DReader, tol float64) (bool, error)
+
+	MatrixTransform3D(m *Matrix3D) error
+	HomogeneousMatrixTransform4D(m *Matrix4D) error
 }
 
 // Vector3DWriter is a write-only interface for a 3D vector.
@@ -449,21 +450,51 @@ func (v *Vector3D) Scale(f float64) error {
 	return nil
 }
 
-// RotateBy rotates the vector about the specified axis by the angle specified.
-// The positive direction is counterclockwise about the specified axis of rotation.
-func (v *Vector3D) RotateBy(axis Vector3DReader, angleRad float64) error {
-	rotMat, err := blasmatrix.Get3DRotMatrix(axis, angleRad)
+// MatrixTransform3D transforms this vector by left-multiplying the given matrix.
+func (v *Vector3D) MatrixTransform3D(m *Matrix3D) error {
+	isSingular, err := m.IsNearSingular(1e-12)
+	if err != nil {
+		return err
+	}
+	if isSingular {
+		return errors.ErrSingularMatrix
+	}
+
+	vv := v.ToBlasVector()
+	mm := m.ToBlas64General()
+	V := blas64.Vector{
+		N:    3,
+		Data: []float64{0, 0, 0},
+		Inc:  1,
+	}
+	blas64.Gemv(blas.NoTrans, 1, mm, vv, 0, V)
+	v.SetX(V.Data[0])
+	v.SetY(V.Data[1])
+	v.SetZ(V.Data[2])
+	return nil
+}
+
+// HomogeneousMatrixTransform4D transforms this vector by left-multiplying the given matrix
+// by the homogeneous vector and then projected back into this space.
+func (v *Vector3D) HomogeneousMatrixTransform4D(m *Matrix4D) error {
+	w := &Vector3D{X: v.X, Y: v.Y, Z: 1.0}
+	err := w.MatrixTransform3D(m)
 	if err != nil {
 		return err
 	}
 
-	vv := v.ToBlasVector()
-	tmp := Zero3D.ToBlasVector()
-	blas64.Gemv(blas.NoTrans, 1, *rotMat, vv, 0, tmp)
+	wx, wy, wz := w.X, w.Y, w.Z
+	if wz != 0 {
+		return errors.ErrDivideByZero
+	}
 
-	x, y, z := tmp.Data[0], tmp.Data[1], tmp.Data[2]
-	v.SetX(x)
-	v.SetY(y)
-	v.SetZ(z)
+	newX := wx / wz
+	newY := wy / wz
+	if numeric.AreAnyOverflow(newX, newY) {
+		return errors.ErrOverflow
+	}
+
+	v.SetX(newX)
+	v.SetY(newY)
 	return nil
 }
