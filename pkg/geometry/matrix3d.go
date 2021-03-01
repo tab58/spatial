@@ -3,7 +3,6 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/errors"
 	"github.com/tab58/v1/spatial/pkg/numeric"
 	"gonum.org/v1/gonum/blas/blas64"
 )
@@ -54,7 +53,7 @@ func (m *Matrix3D) Scale(z float64) error {
 	for i, v := range m.elements {
 		val := v * z
 		if numeric.IsOverflow(val) {
-			return errors.ErrOverflow
+			return numeric.ErrOverflow
 		}
 		out[i] = val
 	}
@@ -66,7 +65,7 @@ func (m *Matrix3D) Scale(z float64) error {
 func (m *Matrix3D) ElementAt(i, j uint) (float64, error) {
 	cols := m.Cols()
 	if i <= m.Rows() || j <= cols {
-		return 0, errors.ErrMatrixOutOfRange
+		return 0, numeric.ErrMatrixOutOfRange
 	}
 	return m.elements[i*cols+j], nil
 }
@@ -74,7 +73,7 @@ func (m *Matrix3D) ElementAt(i, j uint) (float64, error) {
 // SetElements sets the elements in the matrix.
 func (m *Matrix3D) SetElements(m00, m01, m02, m10, m11, m12, m20, m21, m22 float64) error {
 	if numeric.AreAnyOverflow(m00, m01, m02, m10, m11, m12, m20, m21, m22) {
-		return errors.ErrOverflow
+		return numeric.ErrOverflow
 	}
 
 	m.elements[0] = m00
@@ -114,7 +113,7 @@ func (m *Matrix3D) ToBlas64General() blas64.General {
 func (m *Matrix3D) SetElementAt(i, j uint, value float64) error {
 	cols := m.Cols()
 	if i <= m.Rows() || j <= cols {
-		return errors.ErrMatrixOutOfRange
+		return numeric.ErrMatrixOutOfRange
 	}
 	m.elements[i*cols+j] = value
 	return nil
@@ -135,7 +134,7 @@ func (m *Matrix3D) Add(mat *Matrix3D) error {
 	}
 
 	if numeric.AreAnyOverflow(tmp[:]...) {
-		return errors.ErrOverflow
+		return numeric.ErrOverflow
 	}
 	m.elements = tmp
 	return nil
@@ -156,7 +155,7 @@ func (m *Matrix3D) Sub(mat *Matrix3D) error {
 	}
 
 	if numeric.AreAnyOverflow(tmp[:]...) {
-		return errors.ErrOverflow
+		return numeric.ErrOverflow
 	}
 	m.elements = tmp
 	return nil
@@ -185,7 +184,7 @@ func multiply3DMatrices(a, b [9]float64) ([9]float64, error) {
 	out[8] = b20*a02 + b21*a12 + b22*a22
 
 	if numeric.AreAnyOverflow(out[:]...) {
-		return [9]float64{}, errors.ErrOverflow
+		return [9]float64{}, numeric.ErrOverflow
 	}
 	return out, nil
 }
@@ -224,7 +223,7 @@ func (m *Matrix3D) Invert() error {
 	// Calculate the determinant
 	det := a00*b01 + a01*b11 + a02*b21
 	if math.Abs(det) < 1e-13 {
-		return errors.ErrSingularMatrix
+		return numeric.ErrSingularMatrix
 	}
 	det = 1.0 / det
 
@@ -299,7 +298,7 @@ func (m *Matrix3D) IsSingular() bool {
 // IsNearSingular returns true if the matrix determinant is equal or below the given tolerance, false if not.
 func (m *Matrix3D) IsNearSingular(tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	return math.Abs(m.Determinant()) <= tol, nil

@@ -3,7 +3,6 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/errors"
 	"github.com/tab58/v1/spatial/pkg/numeric"
 )
 
@@ -97,7 +96,7 @@ func (p *Point3D) DistanceTo(q Point3DReader) (float64, error) {
 // IsEqualTo returns true if 2 points can be considered equal to within a specific tolerance, false if not.
 func (p *Point3D) IsEqualTo(q Point3DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	px, py, pz := p.GetX(), p.GetY(), p.GetZ()

@@ -3,7 +3,6 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/errors"
 	"github.com/tab58/v1/spatial/pkg/numeric"
 	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/blas/blas64"
@@ -13,6 +12,8 @@ import (
 type Vector2DReader interface {
 	GetX() float64
 	GetY() float64
+	GetComponents() (float64, float64)
+
 	Length() (float64, error)
 	LengthSquared() (float64, error)
 	Angle() (float64, error)
@@ -40,6 +41,7 @@ type Vector2DReader interface {
 type Vector2DWriter interface {
 	SetX(float64)
 	SetY(float64)
+	SetComponents(float64, float64)
 	Negate()
 	Add(w Vector2DReader) error
 	Sub(w Vector2DReader) error
@@ -73,6 +75,11 @@ func (v *Vector2D) GetY() float64 {
 	return v.Y
 }
 
+// GetComponents returns the components of the vector.
+func (v *Vector2D) GetComponents() (x, y float64) {
+	return v.GetX(), v.GetY()
+}
+
 // SetX sets the x-coordinate of the vector.
 func (v *Vector2D) SetX(z float64) {
 	v.X = z
@@ -81,6 +88,12 @@ func (v *Vector2D) SetX(z float64) {
 // SetY sets the y-coordinate of the vector.
 func (v *Vector2D) SetY(z float64) {
 	v.Y = z
+}
+
+// SetComponents sets the components of the vector.
+func (v *Vector2D) SetComponents(x, y float64) {
+	v.SetX(x)
+	v.SetY(y)
 }
 
 // Clone creates a new Vector2D with the same component values.
@@ -93,74 +106,71 @@ func (v *Vector2D) Clone() *Vector2D {
 
 // Dot computes the dot produce between this vector and another Vector2DReader.
 func (v *Vector2D) Dot(w Vector2DReader) (float64, error) {
-	ax, ay := v.GetX(), v.GetY()
-	bx, by := w.GetX(), w.GetY()
+	ax, ay := v.GetComponents()
+	bx, by := w.GetComponents()
 
 	res := ax*bx + ay*by
-	if math.IsInf(res, 0) {
-		return 0, errors.ErrOverflow
+	if numeric.IsOverflow(res) {
+		return 0, numeric.ErrOverflow
 	}
 	return res, nil
 }
 
 // Length computes the length of the vector.
 func (v *Vector2D) Length() (float64, error) {
-	x, y := v.GetX(), v.GetY()
+	x, y := v.GetComponents()
 	r := numeric.Nrm2(x, y)
 
-	if math.IsInf(r, 0) {
-		return 0, errors.ErrOverflow
+	if numeric.IsOverflow(r) {
+		return 0, numeric.ErrOverflow
 	}
 	return r, nil
 }
 
 // LengthSquared computes the squared length of the vector.
 func (v *Vector2D) LengthSquared() (float64, error) {
-	x, y := v.GetX(), v.GetY()
+	x, y := v.GetComponents()
 
 	res := x*x + y*y
-	if math.IsInf(res, 0) {
-		return 0, errors.ErrOverflow
+	if numeric.IsOverflow(res) {
+		return 0, numeric.ErrOverflow
 	}
 	return res, nil
 }
 
 // Negate negates the vector components.
 func (v *Vector2D) Negate() {
-	x, y := v.GetX(), v.GetY()
-	v.SetX(-x)
-	v.SetY(-y)
+	x, y := v.GetComponents()
+	v.SetComponents(-x, -y)
 }
 
 // Add adds the given displacement vector to this point.
 func (v *Vector2D) Add(w Vector2DReader) error {
-	vx, vy := v.GetX(), v.GetY()
-	wx, wy := w.GetX(), w.GetY()
+	vx, vy := v.GetComponents()
+	wx, wy := w.GetComponents()
 
 	newX := vx + wx
 	newY := vy + wy
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY) {
+		return numeric.ErrOverflow
 	}
 
-	v.SetX(newX)
-	v.SetY(newY)
+	v.SetComponents(newX, newY)
 	return nil
 }
 
 // Sub subtracts the given displacement vector to this point.
 func (v *Vector2D) Sub(w Vector2DReader) error {
-	vx, vy := v.GetX(), v.GetY()
-	wx, wy := w.GetX(), w.GetY()
+	vx, vy := v.GetComponents()
+	wx, wy := w.GetComponents()
 
 	newX := vx - wx
 	newY := vy - wy
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY) {
+		return numeric.ErrOverflow
 	}
 
-	v.SetX(newX)
-	v.SetY(newY)
+	v.SetComponents(newX, newY)
 	return nil
 }
 
@@ -209,51 +219,49 @@ func (v *Vector2D) Angle() (float64, error) {
 
 // Normalize scales the vector to unit length.
 func (v *Vector2D) Normalize() error {
-	x, y := v.GetX(), v.GetY()
+	x, y := v.GetComponents()
 	l, err := v.Length()
 	if err != nil {
 		return err
 	}
 	if math.Abs(l) == 0 {
-		return errors.ErrDivideByZero
+		return numeric.ErrDivideByZero
 	}
 
 	newX := x / l
 	newY := y / l
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY) {
+		return numeric.ErrOverflow
 	}
 
-	v.SetX(newX)
-	v.SetY(newY)
+	v.SetComponents(newX, newY)
 	return nil
 }
 
 // Scale scales the vector by the given factor.
 func (v *Vector2D) Scale(f float64) error {
 	if math.IsNaN(f) {
-		return errors.ErrInvalidArgument
+		return numeric.ErrInvalidArgument
 	}
 
 	newX := v.GetX() * f
 	newY := v.GetY() * f
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY) {
+		return numeric.ErrOverflow
 	}
 
-	v.SetX(newX)
-	v.SetY(newY)
+	v.SetComponents(newX, newY)
 	return nil
 }
 
 // IsEqualTo returns true if the vector components are equal within a tolerance of each other, false if not.
 func (v *Vector2D) IsEqualTo(w Vector2DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
-	vx, vy := v.GetX(), v.GetY()
-	wx, wy := w.GetX(), w.GetY()
+	vx, vy := v.GetComponents()
+	wx, wy := w.GetComponents()
 
 	x := math.Abs(wx - vx)
 	y := math.Abs(wy - vy)
@@ -265,7 +273,7 @@ func (v *Vector2D) IsEqualTo(w Vector2DReader, tol float64) (bool, error) {
 // IsParallelTo returns true if the vector is in the direction (either same or opposite) of the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsParallelTo(w Vector2DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -296,7 +304,7 @@ func (v *Vector2D) IsParallelTo(w Vector2DReader, tol float64) (bool, error) {
 // IsCodirectionalTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsCodirectionalTo(w Vector2DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -310,7 +318,7 @@ func (v *Vector2D) IsCodirectionalTo(w Vector2DReader, tol float64) (bool, error
 // IsPerpendicularTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector2D) IsPerpendicularTo(w Vector2DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -329,7 +337,7 @@ func (v *Vector2D) IsPerpendicularTo(w Vector2DReader, tol float64) (bool, error
 // IsUnitLength returns true if the vector is equal to the normalized vector within the given tolerance, false if not.
 func (v *Vector2D) IsUnitLength(tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -340,14 +348,14 @@ func (v *Vector2D) IsUnitLength(tol float64) (bool, error) {
 // IsZeroLength returns true if the vector is of zero length (within a tolerance), false if not.
 func (v *Vector2D) IsZeroLength(tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 	return v.IsEqualTo(Zero2D, tol)
 }
 
 // GetPerpendicularVector gets a vector perpendicular to this one.
 func (v *Vector2D) GetPerpendicularVector() *Vector2D {
-	x, y := v.GetX(), v.GetY()
+	x, y := v.GetComponents()
 	return &Vector2D{X: -y, Y: x}
 }
 
@@ -374,20 +382,24 @@ func (v *Vector2D) MatrixTransform2D(m *Matrix2D) error {
 		return err
 	}
 	if isSingular {
-		return errors.ErrSingularMatrix
+		return numeric.ErrSingularMatrix
 	}
 
 	vv := v.ToBlasVector()
 	mm := m.ToBlas64General()
 
-	V := blas64.Vector{
+	uu := blas64.Vector{
 		N:    2,
 		Data: []float64{0, 0},
 		Inc:  1,
 	}
-	blas64.Gemv(blas.NoTrans, 1, mm, vv, 0, V)
-	v.SetX(V.Data[0])
-	v.SetY(V.Data[1])
+	blas64.Gemv(blas.NoTrans, 1, mm, vv, 0, uu)
+	newX, newY := uu.Data[0], uu.Data[1]
+	if numeric.AreAnyOverflow(newX, newY) {
+		return numeric.ErrOverflow
+	}
+
+	v.SetComponents(newX, newY)
 	return nil
 }
 
@@ -402,16 +414,15 @@ func (v *Vector2D) HomogeneousMatrixTransform3D(m *Matrix3D) error {
 
 	wx, wy, wz := w.X, w.Y, w.Z
 	if wz != 0 {
-		return errors.ErrDivideByZero
+		return numeric.ErrDivideByZero
 	}
 
 	newX := wx / wz
 	newY := wy / wz
 	if numeric.AreAnyOverflow(newX, newY) {
-		return errors.ErrOverflow
+		return numeric.ErrOverflow
 	}
 
-	v.SetX(newX)
-	v.SetY(newY)
+	v.SetComponents(newX, newY)
 	return nil
 }

@@ -3,7 +3,6 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/errors"
 	"github.com/tab58/v1/spatial/pkg/numeric"
 )
 
@@ -67,13 +66,13 @@ func (p *Point2D) Copy(q Point2DReader) {
 // Scale scales the displacement vector from the origin by the given factor.
 func (p *Point2D) Scale(f float64) error {
 	if math.IsNaN(f) {
-		return errors.ErrInvalidArgument
+		return numeric.ErrInvalidArgument
 	}
 
 	newX := p.GetX() * f
 	newY := p.GetY() * f
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY) {
+		return numeric.ErrOverflow
 	}
 
 	p.SetX(newX)
@@ -88,8 +87,8 @@ func (p *Point2D) Add(v Vector2DReader) error {
 
 	newX := x + vx
 	newY := y + vy
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY) {
+		return numeric.ErrOverflow
 	}
 
 	p.SetX(newX)
@@ -104,8 +103,8 @@ func (p *Point2D) Sub(v Vector2DReader) error {
 
 	newX := x - vx
 	newY := y - vy
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY) {
+		return numeric.ErrOverflow
 	}
 
 	p.SetX(newX)
@@ -136,13 +135,13 @@ func (p *Point2D) DistanceTo(q Point2DReader) (float64, error) {
 
 	newX := qx - px
 	newY := qy - py
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) {
-		return 0, errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY) {
+		return 0, numeric.ErrOverflow
 	}
 
 	len := numeric.Nrm2(newX, newY)
-	if math.IsInf(len, 0) {
-		return 0, errors.ErrOverflow
+	if numeric.IsOverflow(len) {
+		return 0, numeric.ErrOverflow
 	}
 	return len, nil
 }
@@ -150,7 +149,7 @@ func (p *Point2D) DistanceTo(q Point2DReader) (float64, error) {
 // IsEqualTo returns true if 2 points can be considered equal to within a specific tolerance, false if not.
 func (p *Point2D) IsEqualTo(q Point2DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 	px, py := p.GetX(), p.GetY()
 	qx, qy := q.GetX(), q.GetY()

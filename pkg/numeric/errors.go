@@ -1,4 +1,4 @@
-package errors
+package numeric
 
 import (
 	e "errors"

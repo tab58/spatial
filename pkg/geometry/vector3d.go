@@ -3,7 +3,6 @@ package geometry
 import (
 	"math"
 
-	"github.com/tab58/v1/spatial/pkg/errors"
 	"github.com/tab58/v1/spatial/pkg/numeric"
 	"gonum.org/v1/gonum/blas"
 	"gonum.org/v1/gonum/blas/blas64"
@@ -15,6 +14,7 @@ type Vector3DReader interface {
 	GetY() float64
 	GetZ() float64
 
+	GetComponents() (float64, float64, float64)
 	Length() (float64, error)
 	LengthSquared() (float64, error)
 	Clone() *Vector3D
@@ -85,6 +85,11 @@ func (v *Vector3D) GetZ() float64 {
 	return v.Z
 }
 
+// GetComponents returns the components of the vector.
+func (v *Vector3D) GetComponents() (x, y, z float64) {
+	return v.GetX(), v.GetY(), v.GetZ()
+}
+
 // SetX sets the x-coordinate of the vector.
 func (v *Vector3D) SetX(z float64) {
 	v.X = z
@@ -100,6 +105,13 @@ func (v *Vector3D) SetZ(z float64) {
 	v.Z = z
 }
 
+// SetComponents sets the components of the vector.
+func (v *Vector3D) SetComponents(x, y, z float64) {
+	v.SetX(x)
+	v.SetY(y)
+	v.SetZ(z)
+}
+
 // ToBlasVector returns a BLAS vector for operations.
 func (v *Vector3D) ToBlasVector() blas64.Vector {
 	return blas64.Vector{
@@ -111,22 +123,22 @@ func (v *Vector3D) ToBlasVector() blas64.Vector {
 
 // Length computes the length of the vector.
 func (v *Vector3D) Length() (float64, error) {
-	x, y, z := v.GetX(), v.GetY(), v.GetZ()
+	x, y, z := v.GetComponents()
 
 	r := numeric.Nrm2(numeric.Nrm2(x, y), z)
-	if math.IsInf(r, 0) {
-		return 0, errors.ErrOverflow
+	if numeric.AreAnyOverflow(r) {
+		return 0, numeric.ErrOverflow
 	}
 	return r, nil
 }
 
 // LengthSquared computes the squared length of the vector.
 func (v *Vector3D) LengthSquared() (float64, error) {
-	x, y, z := v.GetX(), v.GetY(), v.GetZ()
+	x, y, z := v.GetComponents()
 
 	r := x*x + y*y + z*z
-	if math.IsInf(r, 0) {
-		return 0, errors.ErrOverflow
+	if numeric.IsOverflow(r) {
+		return 0, numeric.ErrOverflow
 	}
 	return r, nil
 }
@@ -150,7 +162,7 @@ func (v *Vector3D) GetNormalizedVector() *Vector3D {
 // IsZeroLength returns true if the vector is of zero length (within a tolerance), false if not.
 func (v *Vector3D) IsZeroLength(tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 	return v.IsEqualTo(Zero3D, tol)
 }
@@ -158,7 +170,7 @@ func (v *Vector3D) IsZeroLength(tol float64) (bool, error) {
 // IsUnitLength returns true if the vector is equal to the normalized vector within the given tolerance, false if not.
 func (v *Vector3D) IsUnitLength(tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -212,12 +224,12 @@ func (v *Vector3D) AngleTo(u Vector3DReader) (float64, error) {
 
 // Dot computes the dot product between this vector and another Vector3DReader.
 func (v *Vector3D) Dot(w Vector3DReader) (float64, error) {
-	ax, ay, az := v.GetX(), v.GetY(), v.GetZ()
-	bx, by, bz := w.GetX(), w.GetY(), w.GetZ()
+	ax, ay, az := v.GetComponents()
+	bx, by, bz := w.GetComponents()
 
 	r := ax*bx + ay*by + az*bz
-	if math.IsInf(r, 0) {
-		return 0, errors.ErrOverflow
+	if numeric.AreAnyOverflow(r) {
+		return 0, numeric.ErrOverflow
 	}
 
 	return r, nil
@@ -225,22 +237,14 @@ func (v *Vector3D) Dot(w Vector3DReader) (float64, error) {
 
 // Cross computes the cross product between this vector and another Vector3DReader.
 func (v *Vector3D) Cross(w Vector3DReader) (*Vector3D, error) {
-	ax, ay, az := v.GetX(), v.GetY(), v.GetZ()
-	bx, by, bz := w.GetX(), w.GetY(), w.GetZ()
+	ax, ay, az := v.GetComponents()
+	bx, by, bz := w.GetComponents()
 
 	ux := ay*bz - az*by
-	if math.IsInf(ux, 0) {
-		return nil, errors.ErrOverflow
-	}
-
 	uy := az*bx - ax*bz
-	if math.IsInf(uy, 0) {
-		return nil, errors.ErrOverflow
-	}
-
 	uz := ax*by - ay*bx
-	if math.IsInf(uz, 0) {
-		return nil, errors.ErrOverflow
+	if numeric.AreAnyOverflow(ux, uy, uz) {
+		return nil, numeric.ErrOverflow
 	}
 
 	cross := &Vector3D{
@@ -254,11 +258,11 @@ func (v *Vector3D) Cross(w Vector3DReader) (*Vector3D, error) {
 // IsEqualTo returns true if the vector components are equal within a tolerance of each other, false if not.
 func (v *Vector3D) IsEqualTo(w Vector3DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
-	vx, vy, vz := v.GetX(), v.GetY(), v.GetZ()
-	wx, wy, wz := w.GetX(), w.GetY(), v.GetZ()
+	vx, vy, vz := v.GetComponents()
+	wx, wy, wz := w.GetComponents()
 
 	x := math.Abs(wx - vx)
 	y := math.Abs(wy - vy)
@@ -270,7 +274,7 @@ func (v *Vector3D) IsEqualTo(w Vector3DReader, tol float64) (bool, error) {
 // IsParallelTo returns true if the vector is in the direction (either same or opposite) of the given vector within the given tolerance, false if not.
 func (v *Vector3D) IsParallelTo(w Vector3DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -301,7 +305,7 @@ func (v *Vector3D) IsParallelTo(w Vector3DReader, tol float64) (bool, error) {
 // IsPerpendicularTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector3D) IsPerpendicularTo(w Vector3DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -320,7 +324,7 @@ func (v *Vector3D) IsPerpendicularTo(w Vector3DReader, tol float64) (bool, error
 // IsCodirectionalTo returns true if the vector is pointed in the same direction as the given vector within the given tolerance, false if not.
 func (v *Vector3D) IsCodirectionalTo(w Vector3DReader, tol float64) (bool, error) {
 	if numeric.IsInvalidTolerance(tol) {
-		return false, errors.ErrInvalidTol
+		return false, numeric.ErrInvalidTol
 	}
 
 	vv := v.Clone()
@@ -341,112 +345,74 @@ func (v *Vector3D) Negate() {
 
 // Add adds the given displacement vector to this point.
 func (v *Vector3D) Add(w Vector3DReader) error {
-	vx, vy, vz := v.GetX(), v.GetY(), v.GetZ()
-	wx, wy, wz := w.GetX(), w.GetY(), v.GetZ()
+	vx, vy, vz := v.GetComponents()
+	wx, wy, wz := w.GetComponents()
 
-	c := bigfloat.NewCalculator(v.GetX())
-	c.SetFloat64(vx)
-	c.Add(wx)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
+	newX := vx + wx
+	newY := vy + wy
+	newZ := vz + wz
+	if numeric.AreAnyOverflow(newX, newY, newZ) {
+		return numeric.ErrOverflow
 	}
 
-	c.SetFloat64(vy)
-	c.Add(wy)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(vz)
-	c.Add(wz)
-	newZ, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	v.SetX(newX)
-	v.SetY(newY)
-	v.SetZ(newZ)
+	v.SetComponents(newX, newY, newZ)
 	return nil
 }
 
 // Sub subtracts the given displacement vector to this point.
 func (v *Vector3D) Sub(w Vector3DReader) error {
-	vx, vy, vz := v.GetX(), v.GetY(), v.GetZ()
-	wx, wy, wz := w.GetX(), w.GetY(), v.GetZ()
+	vx, vy, vz := v.GetComponents()
+	wx, wy, wz := w.GetComponents()
 
-	c := bigfloat.NewCalculator(v.GetX())
-	c.SetFloat64(vx)
-	c.Sub(wx)
-	newX, err := c.Float64()
-	if err != nil {
-		return err
+	newX := vx - wx
+	newY := vy - wy
+	newZ := vz - wz
+	if numeric.AreAnyOverflow(newX, newY, newZ) {
+		return numeric.ErrOverflow
 	}
 
-	c.SetFloat64(vy)
-	c.Sub(wy)
-	newY, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	c.SetFloat64(vz)
-	c.Sub(wz)
-	newZ, err := c.Float64()
-	if err != nil {
-		return err
-	}
-
-	v.SetX(newX)
-	v.SetY(newY)
-	v.SetZ(newZ)
+	v.SetComponents(newX, newY, newZ)
 	return nil
 }
 
 // Normalize scales the vector to unit length.
 func (v *Vector3D) Normalize() error {
-	x, y, z := v.GetX(), v.GetY(), v.GetZ()
+	x, y, z := v.GetComponents()
 	l, err := v.Length()
 	if err != nil {
 		return err
 	}
 	if math.Abs(l) == 0 {
-		return errors.ErrDivideByZero
+		return numeric.ErrDivideByZero
 	}
 
 	newX := x / l
 	newY := y / l
 	newZ := z / l
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) || math.IsInf(newZ, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY, newZ) {
+		return numeric.ErrOverflow
 	}
 
-	v.SetX(newX)
-	v.SetY(newY)
-	v.SetZ(newZ)
+	v.SetComponents(newX, newY, newZ)
 	return nil
 }
 
 // Scale scales the vector by the given factor.
 func (v *Vector3D) Scale(f float64) error {
 	if math.IsNaN(f) {
-		return errors.ErrInvalidArgument
+		return numeric.ErrInvalidArgument
 	}
 
-	x, y, z := v.GetX(), v.GetY(), v.GetZ()
+	x, y, z := v.GetComponents()
 
 	newX := x * f
 	newY := y * f
 	newZ := z * f
-	if math.IsInf(newX, 0) || math.IsInf(newY, 0) || math.IsInf(newZ, 0) {
-		return errors.ErrOverflow
+	if numeric.AreAnyOverflow(newX, newY, newZ) {
+		return numeric.ErrOverflow
 	}
 
-	v.SetX(newX)
-	v.SetY(newY)
-	v.SetZ(newZ)
+	v.SetComponents(newX, newY, newZ)
 	return nil
 }
 
@@ -457,44 +423,50 @@ func (v *Vector3D) MatrixTransform3D(m *Matrix3D) error {
 		return err
 	}
 	if isSingular {
-		return errors.ErrSingularMatrix
+		return numeric.ErrSingularMatrix
 	}
 
 	vv := v.ToBlasVector()
 	mm := m.ToBlas64General()
-	V := blas64.Vector{
+	uu := blas64.Vector{
 		N:    3,
 		Data: []float64{0, 0, 0},
 		Inc:  1,
 	}
-	blas64.Gemv(blas.NoTrans, 1, mm, vv, 0, V)
-	v.SetX(V.Data[0])
-	v.SetY(V.Data[1])
-	v.SetZ(V.Data[2])
+	blas64.Gemv(blas.NoTrans, 1, mm, vv, 0, uu)
+
+	newX := uu.Data[0]
+	newY := uu.Data[1]
+	newZ := uu.Data[2]
+	if numeric.AreAnyOverflow(newX, newY, newZ) {
+		return numeric.ErrOverflow
+	}
+
+	v.SetComponents(newX, newY, newZ)
 	return nil
 }
 
 // HomogeneousMatrixTransform4D transforms this vector by left-multiplying the given matrix
 // by the homogeneous vector and then projected back into this space.
 func (v *Vector3D) HomogeneousMatrixTransform4D(m *Matrix4D) error {
-	w := &Vector3D{X: v.X, Y: v.Y, Z: 1.0}
-	err := w.MatrixTransform3D(m)
+	u := &Vector4D{X: v.X, Y: v.Y, Z: v.Z, W: 1.0}
+	err := u.MatrixTransform4D(m)
 	if err != nil {
 		return err
 	}
 
-	wx, wy, wz := w.X, w.Y, w.Z
-	if wz != 0 {
-		return errors.ErrDivideByZero
+	ux, uy, uz, uw := u.GetComponents()
+	if uw != 0 {
+		return numeric.ErrDivideByZero
 	}
 
-	newX := wx / wz
-	newY := wy / wz
-	if numeric.AreAnyOverflow(newX, newY) {
-		return errors.ErrOverflow
+	newX := ux / uw
+	newY := uy / uw
+	newZ := uz / uw
+	if numeric.AreAnyOverflow(newX, newY, newZ) {
+		return numeric.ErrOverflow
 	}
 
-	v.SetX(newX)
-	v.SetY(newY)
+	v.SetComponents(newX, newY, newZ)
 	return nil
 }
